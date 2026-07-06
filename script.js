@@ -49,6 +49,7 @@ let statsMode = "week";
 let latestCalorieEstimate = null;
 let caloriesTouched = false;
 let lastAutoCalories = "";
+let photoDataUrl = "";
 
 const dom = {
   todayLabel: document.querySelector("#todayLabel"),
@@ -66,6 +67,10 @@ const dom = {
   time: document.querySelector("#time"),
   tag: document.querySelector("#tag"),
   note: document.querySelector("#note"),
+  mealPhoto: document.querySelector("#mealPhoto"),
+  photoPreview: document.querySelector("#photoPreview"),
+  photoPreviewImage: document.querySelector("#photoPreviewImage"),
+  clearPhoto: document.querySelector("#clearPhoto"),
   mealChips: document.querySelector("#mealChips"),
   tabs: document.querySelectorAll(".tab"),
   views: document.querySelectorAll(".view"),
@@ -104,6 +109,8 @@ function initialize() {
   dom.nextMonth.addEventListener("click", () => moveMonth(1));
   dom.seedDemoButton.addEventListener("click", addDemoEntries);
   dom.applyCalorieEstimate.addEventListener("click", applyCalorieEstimate);
+  dom.mealPhoto.addEventListener("change", handlePhotoSelect);
+  dom.clearPhoto.addEventListener("click", clearPhoto);
   [dom.foodName, dom.amount].forEach((input) => input.addEventListener("input", updateCalorieEstimate));
   dom.unit.addEventListener("change", updateCalorieEstimate);
   dom.calories.addEventListener("input", () => { caloriesTouched = dom.calories.value !== ""; });
@@ -143,6 +150,7 @@ function saveEntry(event) {
     time: dom.time.value,
     tag: dom.tag.value,
     note: dom.note.value.trim(),
+    photo: photoDataUrl,
     createdAt: new Date().toISOString(),
   };
   if (!entry.foodName || !entry.amount || !entry.date || !entry.time) {
@@ -155,11 +163,12 @@ function saveEntry(event) {
   dom.date.value = entry.date;
   dom.time.value = toTimeInputValue(new Date());
   setActiveMeal("早餐");
+  clearPhoto();
   caloriesTouched = false;
   lastAutoCalories = "";
   updateCalorieEstimate();
   renderAll();
-  showToast("记好了，今天也认真吃饭了");
+  showToast("记好了，照片也一起保存了");
   switchView("today");
 }
 
@@ -168,6 +177,55 @@ function deleteEntry(id) {
   persistEntries();
   renderAll();
   showToast("已经删除这条记录");
+}
+
+async function handlePhotoSelect(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    showToast("请选择图片文件");
+    clearPhoto();
+    return;
+  }
+  try {
+    photoDataUrl = await resizeImage(file, 900, 0.78);
+    dom.photoPreviewImage.src = photoDataUrl;
+    dom.photoPreview.hidden = false;
+    showToast("照片已添加");
+  } catch {
+    showToast("照片读取失败，换一张试试");
+    clearPhoto();
+  }
+}
+
+function clearPhoto() {
+  photoDataUrl = "";
+  dom.mealPhoto.value = "";
+  dom.photoPreviewImage.removeAttribute("src");
+  dom.photoPreview.hidden = true;
+}
+
+function resizeImage(file, maxSize, quality) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      const image = new Image();
+      image.onerror = reject;
+      image.onload = () => {
+        const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+        const width = Math.max(1, Math.round(image.width * scale));
+        const height = Math.max(1, Math.round(image.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(image, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      image.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 function renderAll() { renderToday(); renderCalendar(); renderStats(); }
@@ -253,7 +311,8 @@ function renderMealGroups(list) {
 
 function renderEntry(entry) {
   const detail = [`${entry.amount}${entry.unit}`, entry.calories ? `${entry.calories} kcal` : "", entry.time, entry.tag ? `#${entry.tag}` : "", entry.note].filter(Boolean).join(" | ");
-  return `<div class="entry-row"><div><div class="entry-name">${escapeHtml(entry.foodName)}</div><p class="entry-meta">${escapeHtml(detail)}</p></div><button class="delete-button" data-delete="${entry.id}" title="删除" type="button">x</button></div>`;
+  const photo = entry.photo ? `<img class="entry-photo" src="${entry.photo}" alt="${escapeHtml(entry.foodName)}照片" loading="lazy" />` : "";
+  return `<div class="entry-row"><div class="entry-main">${photo}<div><div class="entry-name">${escapeHtml(entry.foodName)}</div><p class="entry-meta">${escapeHtml(detail)}</p></div></div><button class="delete-button" data-delete="${entry.id}" title="删除" type="button">x</button></div>`;
 }
 
 function updateCalorieEstimate() {
@@ -318,6 +377,7 @@ function addDemoEntries() {
     time,
     tag,
     note: "",
+    photo: "",
     createdAt: new Date().toISOString(),
   }));
   entries = [...demo, ...entries];
