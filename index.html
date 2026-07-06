@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>每日吃饭记录</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="top-bar">
+        <div>
+          <p class="eyebrow" id="todayLabel">今天</p>
+          <h1>每日吃饭记录</h1>
+        </div>
+        <button class="icon-button" id="seedDemoButton" title="添加示例数据" type="button">+</button>
+      </header>
+
+      <main>
+        <section class="view active" id="view-today" aria-label="今日记录">
+          <div class="hero-panel">
+            <div>
+              <p class="soft-label">今日小结</p>
+              <h2 id="dailySummary">今天还没有记录吃了什么</h2>
+              <p id="dailyHint">按下面的按钮，把第一餐记下来。</p>
+            </div>
+            <div class="mascot" aria-hidden="true">饭</div>
+          </div>
+
+          <button class="primary-button" id="openAddFromToday" type="button">记录一餐</button>
+          <div class="meal-groups" id="todayMealGroups"></div>
+        </section>
+
+        <section class="view" id="view-add" aria-label="添加记录">
+          <form class="entry-form" id="entryForm">
+            <div class="form-card">
+              <label>食物名称
+                <input id="foodName" name="foodName" placeholder="比如：鸡蛋、米饭、咖啡" required />
+              </label>
+
+              <div class="form-row">
+                <label>数量
+                  <input id="amount" name="amount" min="0" placeholder="1" step="0.1" type="number" required />
+                </label>
+                <label>单位
+                  <select id="unit" name="unit">
+                    <option>份</option>
+                    <option>个</option>
+                    <option>碗</option>
+                    <option>杯</option>
+                    <option>克</option>
+                    <option>毫升</option>
+                    <option>片</option>
+                    <option>块</option>
+                    <option>根</option>
+                  </select>
+                </label>
+              </div>
+
+              <label>热量 kcal
+                <input id="calories" name="calories" min="0" placeholder="可选，比如：230" step="1" type="number" />
+              </label>
+              <div class="calorie-helper">
+                <span id="calorieEstimateText">输入食物和数量后，我会自动估算热量。</span>
+                <button class="mini-button" id="applyCalorieEstimate" type="button" disabled>使用估算</button>
+              </div>
+
+              <label>餐次
+                <div class="chip-group" id="mealChips">
+                  <button class="chip active" data-value="早餐" type="button">早餐</button>
+                  <button class="chip" data-value="午餐" type="button">午餐</button>
+                  <button class="chip" data-value="晚餐" type="button">晚餐</button>
+                  <button class="chip" data-value="加餐" type="button">加餐</button>
+                </div>
+              </label>
+
+              <div class="form-row">
+                <label>日期
+                  <input id="date" name="date" type="date" required />
+                </label>
+                <label>时间
+                  <input id="time" name="time" type="time" required />
+                </label>
+              </div>
+
+              <label>标签
+                <select id="tag" name="tag">
+                  <option value="">不选择</option>
+                  <option>清淡</option>
+                  <option>健康</option>
+                  <option>甜</option>
+                  <option>辣</option>
+                  <option>油腻</option>
+                  <option>放松一下</option>
+                </select>
+              </label>
+
+              <label>备注
+                <textarea id="note" name="note" placeholder="比如：自己做的，今天很好吃"></textarea>
+              </label>
+            </div>
+
+            <button class="primary-button" type="submit">记好了</button>
+          </form>
+        </section>
+
+        <section class="view" id="view-calendar" aria-label="日历">
+          <div class="section-head">
+            <button class="ghost-button" id="prevMonth" type="button">上月</button>
+            <h2 id="calendarTitle">本月</h2>
+            <button class="ghost-button" id="nextMonth" type="button">下月</button>
+          </div>
+          <div class="calendar-grid calendar-weekdays">
+            <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
+          </div>
+          <div class="calendar-grid" id="calendarGrid"></div>
+          <div class="day-detail">
+            <h3 id="selectedDateTitle">选择一天看看吃了什么</h3>
+            <div id="selectedDayList"></div>
+          </div>
+        </section>
+
+        <section class="view" id="view-stats" aria-label="统计">
+          <div class="stats-switch">
+            <button class="pill active" data-mode="week" type="button">本周</button>
+            <button class="pill" data-mode="month" type="button">本月</button>
+          </div>
+
+          <div class="stats-grid">
+            <article class="stat-card"><p>记录天数</p><strong id="statDays">0</strong></article>
+            <article class="stat-card"><p>总记录</p><strong id="statEntries">0</strong></article>
+            <article class="stat-card"><p>总热量</p><strong id="statCalories">0</strong></article>
+            <article class="stat-card"><p>常吃第一名</p><strong id="statTopFood">暂无</strong></article>
+          </div>
+
+          <div class="chart-card">
+            <div class="section-head compact">
+              <h2 id="chartTitle">一周记录</h2>
+              <span id="rangeLabel"></span>
+            </div>
+            <div class="bar-chart" id="barChart"></div>
+          </div>
+
+          <div class="list-panel">
+            <h2>常吃食物</h2>
+            <div id="topFoodsList"></div>
+          </div>
+        </section>
+      </main>
+
+      <nav class="tab-bar" aria-label="主导航">
+        <button class="tab active" data-view="today" type="button">今日</button>
+        <button class="tab" data-view="add" type="button">添加</button>
+        <button class="tab" data-view="calendar" type="button">日历</button>
+        <button class="tab" data-view="stats" type="button">统计</button>
+      </nav>
+    </div>
+
+    <div class="toast" id="toast" role="status"></div>
+    <script src="script.js"></script>
+  </body>
+</html>
