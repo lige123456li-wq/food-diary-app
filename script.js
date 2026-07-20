@@ -1,51 +1,50 @@
 const STORAGE_KEY = "cuteFoodDiaryEntries";
 const MIGRATION_KEY = "cuteFoodDiaryMigratedToSupabase";
 const SUPABASE_URL = "https://hsjddyyjxvyhbszihwnp.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhzamRkeXlqeHZ5aGJzemlIdeG4cCIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzg0NTU4MTE2LCJleHAiOjIxMDAxMzQxMTZ9.gT1ygLFTqyln7Jb1xkGK8dNSNf7OrkDZJ-RNEhYSmn0";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhzamRkeXlqeHZ5aGJzemlod25wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1NTgxMTYsImV4cCI6MjEwMDEzNDExNn0.gT1ygLFTqyln7Jb1xkGK8dNSNf7OrkDZJ-RNEhYSmn0";
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const mealOrder = ["早餐", "午餐", "晚餐", "加餐"];
 const mealLabel = { 早餐: "早餐", 午餐: "午餐", 晚餐: "晚餐", 加餐: "加餐" };
-
 const calorieDatabase = [
-  { name: "番茄鸡蛋饭", keywords: ["番茄鸡蛋饭"], kcalPer100: 130, units: { 份: 430, 碗: 330 } },
-  { name: "燕麦酸奶", keywords: ["燕麦酸奶"], kcalPer100: 120, units: { 碗: 220, 杯: 220, 份: 220 } },
-  { name: "鸡胸肉", keywords: ["鸡胸肉", "鸡肉"], kcalPer100: 165, units: { 份: 150, 个: 80 } },
-  { name: "米饭", keywords: ["米饭", "白饭", "饭"], kcalPer100: 116, units: { 碗: 150, 份: 220 } },
-  { name: "面条", keywords: ["面条", "拉面", "拌面"], kcalPer100: 137, units: { 碗: 280, 份: 300 } },
-  { name: "馒头", keywords: ["馒头"], kcalPer100: 223, units: { 个: 100, 份: 100 } },
-  { name: "包子", keywords: ["包子"], kcalPer100: 230, units: { 个: 90, 份: 180 } },
-  { name: "饺子", keywords: ["饺子"], kcalPer100: 220, units: { 个: 25, 份: 200 } },
-  { name: "蛋糕", keywords: ["蛋糕"], kcalPer100: 350, units: { 块: 100, 份: 100 } },
-  { name: "鸡蛋", keywords: ["鸡蛋", "煎蛋", "水煮蛋"], kcalPer100: 143, units: { 个: 55, 份: 55 } },
-  { name: "牛奶", keywords: ["牛奶"], kcalPer100: 54, units: { 杯: 250, 份: 250 } },
-  { name: "酸奶", keywords: ["酸奶"], kcalPer100: 72, units: { 杯: 200, 碗: 220, 份: 200 } },
-  { name: "豆浆", keywords: ["豆浆"], kcalPer100: 33, units: { 杯: 300, 份: 300 } },
-  { name: "拿铁", keywords: ["拿铁"], kcalPer100: 55, units: { 杯: 250, 份: 250 } },
-  { name: "咖啡", keywords: ["咖啡"], kcalPer100: 2, units: { 杯: 250, 份: 250 } },
-  { name: "奶茶", keywords: ["奶茶"], kcalPer100: 55, units: { 杯: 500, 份: 500 } },
-  { name: "可乐", keywords: ["可乐"], kcalPer100: 42, units: { 杯: 330, 份: 330 } },
-  { name: "面包", keywords: ["面包", "吐司"], kcalPer100: 265, units: { 个: 70, 片: 35, 份: 70 } },
-  { name: "牛肉", keywords: ["牛肉"], kcalPer100: 250, units: { 份: 150 } },
-  { name: "猪肉", keywords: ["猪肉", "五花肉"], kcalPer100: 395, units: { 份: 150 } },
-  { name: "鱼肉", keywords: ["鱼肉", "鱼"], kcalPer100: 120, units: { 份: 180 } },
-  { name: "虾", keywords: ["虾"], kcalPer100: 99, units: { 个: 20, 份: 150 } },
-  { name: "豆腐", keywords: ["豆腐"], kcalPer100: 81, units: { 块: 150, 份: 200 } },
-  { name: "西兰花", keywords: ["西兰花"], kcalPer100: 34, units: { 份: 180 } },
-  { name: "青菜", keywords: ["青菜", "蔬菜", "生菜"], kcalPer100: 22, units: { 份: 180, 碗: 150 } },
-  { name: "番茄", keywords: ["番茄", "西红柿"], kcalPer100: 18, units: { 个: 180, 份: 180 } },
-  { name: "黄瓜", keywords: ["黄瓜"], kcalPer100: 16, units: { 根: 180, 份: 180 } },
-  { name: "土豆", keywords: ["土豆", "马铃薯"], kcalPer100: 77, units: { 个: 170, 份: 200 } },
-  { name: "红薯", keywords: ["红薯", "地瓜"], kcalPer100: 86, units: { 个: 200, 份: 200 } },
-  { name: "苹果", keywords: ["苹果"], kcalPer100: 52, units: { 个: 180, 份: 180 } },
-  { name: "香蕉", keywords: ["香蕉"], kcalPer100: 89, units: { 根: 120, 份: 120 } },
-  { name: "草莓", keywords: ["草莓"], kcalPer100: 32, units: { 个: 18, 份: 150 } },
-  { name: "橙子", keywords: ["橙子", "桔子"], kcalPer100: 47, units: { 个: 150, 份: 150 } },
-  { name: "粥", keywords: ["粥"], kcalPer100: 46, units: { 碗: 300, 份: 300 } },
-  { name: "汤", keywords: ["汤"], kcalPer100: 35, units: { 碗: 300, 份: 300 } },
-];
-
+  ["番茄鸡蛋饭", ["番茄鸡蛋饭"], 130, { 份: 430, 碗: 330 }],
+  ["燕麦酸奶", ["燕麦酸奶"], 120, { 碗: 220, 杯: 220, 份: 220 }],
+  ["鸡胸肉", ["鸡胸肉", "鸡肉"], 165, { 份: 150, 个: 80 }],
+  ["米饭", ["米饭", "白饭", "饭"], 116, { 碗: 150, 份: 220 }],
+  ["面条", ["面条", "拉面", "拌面"], 137, { 碗: 280, 份: 300 }],
+  ["馒头", ["馒头"], 223, { 个: 100, 份: 100 }],
+  ["包子", ["包子"], 230, { 个: 90, 份: 180 }],
+  ["饺子", ["饺子"], 220, { 个: 25, 份: 200 }],
+  ["蛋糕", ["蛋糕"], 350, { 块: 100, 份: 100 }],
+  ["鸡蛋", ["鸡蛋", "煎蛋", "水煮蛋"], 143, { 个: 55, 份: 55 }],
+  ["牛奶", ["牛奶"], 54, { 杯: 250, 份: 250 }],
+  ["酸奶", ["酸奶"], 72, { 杯: 200, 碗: 220, 份: 200 }],
+  ["豆浆", ["豆浆"], 33, { 杯: 300, 份: 300 }],
+  ["拿铁", ["拿铁"], 55, { 杯: 250, 份: 250 }],
+  ["咖啡", ["咖啡"], 2, { 杯: 250, 份: 250 }],
+  ["奶茶", ["奶茶"], 55, { 杯: 500, 份: 500 }],
+  ["可乐", ["可乐"], 42, { 杯: 330, 份: 330 }],
+  ["面包", ["面包", "吐司"], 265, { 个: 70, 片: 35, 份: 70 }],
+  ["牛肉", ["牛肉"], 250, { 份: 150 }],
+  ["猪肉", ["猪肉", "五花肉"], 395, { 份: 150 }],
+  ["鱼肉", ["鱼肉", "鱼"], 120, { 份: 180 }],
+  ["虾", ["虾"], 99, { 个: 20, 份: 150 }],
+  ["豆腐", ["豆腐"], 81, { 块: 150, 份: 200 }],
+  ["西兰花", ["西兰花"], 34, { 份: 180 }],
+  ["青菜", ["青菜", "蔬菜", "生菜"], 22, { 份: 180, 碗: 150 }],
+  ["番茄", ["番茄", "西红柿"], 18, { 个: 180, 份: 180 }],
+  ["黄瓜", ["黄瓜"], 16, { 根: 180, 份: 180 }],
+  ["土豆", ["土豆", "马铃薯"], 77, { 个: 170, 份: 200 }],
+  ["红薯", ["红薯", "地瓜"], 86, { 个: 200, 份: 200 }],
+  ["苹果", ["苹果"], 52, { 个: 180, 份: 180 }],
+  ["香蕉", ["香蕉"], 89, { 根: 120, 份: 120 }],
+  ["草莓", ["草莓"], 32, { 个: 18, 份: 150 }],
+  ["橙子", ["橙子", "桔子"], 47, { 个: 150, 份: 150 }],
+  ["粥", ["粥"], 46, { 碗: 300, 份: 300 }],
+  ["汤", ["汤"], 35, { 碗: 300, 份: 300 }],
+].map(([name, keywords, kcalPer100, units]) => ({ name, keywords, kcalPer100, units }));
 const defaultUnitWeights = { 份: 200, 个: 100, 碗: 250, 杯: 250, 克: 1, 毫升: 1, 片: 35, 块: 100, 根: 180 };
+
 let entries = [];
 let activeMeal = "早餐";
 let calendarCursor = startOfMonth(new Date());
@@ -57,46 +56,19 @@ let lastAutoCalories = "";
 let photoDataUrl = "";
 
 const dom = {
-  todayLabel: document.querySelector("#todayLabel"),
-  dailySummary: document.querySelector("#dailySummary"),
-  dailyHint: document.querySelector("#dailyHint"),
-  todayMealGroups: document.querySelector("#todayMealGroups"),
-  entryForm: document.querySelector("#entryForm"),
-  foodName: document.querySelector("#foodName"),
-  amount: document.querySelector("#amount"),
-  calories: document.querySelector("#calories"),
-  calorieEstimateText: document.querySelector("#calorieEstimateText"),
-  applyCalorieEstimate: document.querySelector("#applyCalorieEstimate"),
-  unit: document.querySelector("#unit"),
-  date: document.querySelector("#date"),
-  time: document.querySelector("#time"),
-  tag: document.querySelector("#tag"),
-  note: document.querySelector("#note"),
-  mealPhoto: document.querySelector("#mealPhoto"),
-  photoPreview: document.querySelector("#photoPreview"),
-  photoPreviewImage: document.querySelector("#photoPreviewImage"),
-  clearPhoto: document.querySelector("#clearPhoto"),
-  mealChips: document.querySelector("#mealChips"),
-  tabs: document.querySelectorAll(".tab"),
-  views: document.querySelectorAll(".view"),
-  openAddFromToday: document.querySelector("#openAddFromToday"),
-  toast: document.querySelector("#toast"),
-  calendarTitle: document.querySelector("#calendarTitle"),
-  calendarGrid: document.querySelector("#calendarGrid"),
-  prevMonth: document.querySelector("#prevMonth"),
-  nextMonth: document.querySelector("#nextMonth"),
-  selectedDateTitle: document.querySelector("#selectedDateTitle"),
-  selectedDayList: document.querySelector("#selectedDayList"),
-  statsButtons: document.querySelectorAll(".pill"),
-  statDays: document.querySelector("#statDays"),
-  statEntries: document.querySelector("#statEntries"),
-  statCalories: document.querySelector("#statCalories"),
-  statTopFood: document.querySelector("#statTopFood"),
-  chartTitle: document.querySelector("#chartTitle"),
-  rangeLabel: document.querySelector("#rangeLabel"),
-  barChart: document.querySelector("#barChart"),
-  topFoodsList: document.querySelector("#topFoodsList"),
-  seedDemoButton: document.querySelector("#seedDemoButton"),
+  todayLabel: document.querySelector("#todayLabel"), dailySummary: document.querySelector("#dailySummary"), dailyHint: document.querySelector("#dailyHint"),
+  todayMealGroups: document.querySelector("#todayMealGroups"), entryForm: document.querySelector("#entryForm"), foodName: document.querySelector("#foodName"),
+  amount: document.querySelector("#amount"), calories: document.querySelector("#calories"), calorieEstimateText: document.querySelector("#calorieEstimateText"),
+  applyCalorieEstimate: document.querySelector("#applyCalorieEstimate"), unit: document.querySelector("#unit"), date: document.querySelector("#date"),
+  time: document.querySelector("#time"), tag: document.querySelector("#tag"), note: document.querySelector("#note"), mealPhoto: document.querySelector("#mealPhoto"),
+  photoPreview: document.querySelector("#photoPreview"), photoPreviewImage: document.querySelector("#photoPreviewImage"), clearPhoto: document.querySelector("#clearPhoto"),
+  mealChips: document.querySelector("#mealChips"), tabs: document.querySelectorAll(".tab"), views: document.querySelectorAll(".view"),
+  openAddFromToday: document.querySelector("#openAddFromToday"), toast: document.querySelector("#toast"), calendarTitle: document.querySelector("#calendarTitle"),
+  calendarGrid: document.querySelector("#calendarGrid"), prevMonth: document.querySelector("#prevMonth"), nextMonth: document.querySelector("#nextMonth"),
+  selectedDateTitle: document.querySelector("#selectedDateTitle"), selectedDayList: document.querySelector("#selectedDayList"), statsButtons: document.querySelectorAll(".pill"),
+  statDays: document.querySelector("#statDays"), statEntries: document.querySelector("#statEntries"), statCalories: document.querySelector("#statCalories"),
+  statTopFood: document.querySelector("#statTopFood"), chartTitle: document.querySelector("#chartTitle"), rangeLabel: document.querySelector("#rangeLabel"),
+  barChart: document.querySelector("#barChart"), topFoodsList: document.querySelector("#topFoodsList"), seedDemoButton: document.querySelector("#seedDemoButton"),
 };
 
 initialize();
@@ -128,26 +100,19 @@ function bindEvents() {
   [dom.foodName, dom.amount].forEach((input) => input.addEventListener("input", updateCalorieEstimate));
   dom.unit.addEventListener("change", updateCalorieEstimate);
   dom.calories.addEventListener("input", () => { caloriesTouched = dom.calories.value !== ""; });
-  dom.statsButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      statsMode = button.dataset.mode;
-      dom.statsButtons.forEach((item) => item.classList.toggle("active", item === button));
-      renderStats();
-    });
-  });
+  dom.statsButtons.forEach((button) => button.addEventListener("click", () => {
+    statsMode = button.dataset.mode;
+    dom.statsButtons.forEach((item) => item.classList.toggle("active", item === button));
+    renderStats();
+  }));
 }
 
 async function loadEntriesFromCloud() {
-  const { data, error } = await supabaseClient
-    .from("food_entries")
-    .select("*")
-    .order("entry_date", { ascending: false })
-    .order("entry_time", { ascending: false });
-
+  const { data, error } = await supabaseClient.from("food_entries").select("*").order("entry_date", { ascending: false }).order("entry_time", { ascending: false });
   if (error) {
-    showToast("云端读取失败，请检查 Supabase 规则");
     console.error(error);
     entries = loadLocalBackup();
+    showToast("云端读取失败，暂用本地备份");
   } else {
     entries = data.map(fromCloudEntry);
     saveLocalBackup(entries);
@@ -163,7 +128,6 @@ async function migrateLocalEntriesOnce() {
     localStorage.setItem(MIGRATION_KEY, "done");
     return;
   }
-
   try {
     for (const entry of localEntries) {
       const photoUrl = entry.photo?.startsWith("data:image/") ? await uploadPhoto(entry.photo) : entry.photo || "";
@@ -192,26 +156,17 @@ function selectMeal(event) {
 async function saveEntry(event) {
   event.preventDefault();
   const entry = {
-    foodName: dom.foodName.value.trim(),
-    amount: Number(dom.amount.value),
-    calories: dom.calories.value ? Number(dom.calories.value) : null,
-    unit: dom.unit.value,
-    meal: activeMeal,
-    date: dom.date.value,
-    time: dom.time.value,
-    tag: dom.tag.value,
-    note: dom.note.value.trim(),
-    photo: "",
-    createdAt: new Date().toISOString(),
+    foodName: dom.foodName.value.trim(), amount: Number(dom.amount.value), calories: dom.calories.value ? Number(dom.calories.value) : null,
+    unit: dom.unit.value, meal: activeMeal, date: dom.date.value, time: dom.time.value, tag: dom.tag.value, note: dom.note.value.trim(),
+    photo: "", createdAt: new Date().toISOString(),
   };
-
   if (!entry.foodName || !entry.amount || !entry.date || !entry.time) {
     showToast("还有信息没填完整");
     return;
   }
-
+  const submitButton = dom.entryForm.querySelector("button[type='submit']");
   try {
-    dom.entryForm.querySelector("button[type='submit']").disabled = true;
+    submitButton.disabled = true;
     showToast("正在保存到云端...");
     entry.photo = photoDataUrl ? await uploadPhoto(photoDataUrl) : "";
     const savedEntry = await insertCloudEntry(entry);
@@ -225,18 +180,12 @@ async function saveEntry(event) {
     console.error(error);
     showToast("云端保存失败，请检查网络或 Supabase 规则");
   } finally {
-    dom.entryForm.querySelector("button[type='submit']").disabled = false;
+    submitButton.disabled = false;
   }
 }
 
 async function insertCloudEntry(entry) {
-  const payload = toCloudEntry(entry);
-  const { data, error } = await supabaseClient
-    .from("food_entries")
-    .insert(payload)
-    .select("*")
-    .single();
-
+  const { data, error } = await supabaseClient.from("food_entries").insert(toCloudEntry(entry)).select("*").single();
   if (error) throw error;
   return fromCloudEntry(data);
 }
@@ -249,7 +198,6 @@ async function deleteEntry(id) {
     showToast("云端删除失败");
     return;
   }
-
   if (entry?.photo) await deletePhoto(entry.photo);
   entries = entries.filter((item) => item.id !== id);
   saveLocalBackup(entries);
@@ -260,13 +208,9 @@ async function deleteEntry(id) {
 async function uploadPhoto(dataUrl) {
   const blob = await fetch(dataUrl).then((response) => response.blob());
   const filePath = `meals/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
-  const { error } = await supabaseClient.storage
-    .from("meal-photos")
-    .upload(filePath, blob, { contentType: "image/jpeg", upsert: false });
-
+  const { error } = await supabaseClient.storage.from("meal-photos").upload(filePath, blob, { contentType: "image/jpeg", upsert: false });
   if (error) throw error;
-  const { data } = supabaseClient.storage.from("meal-photos").getPublicUrl(filePath);
-  return data.publicUrl;
+  return supabaseClient.storage.from("meal-photos").getPublicUrl(filePath).data.publicUrl;
 }
 
 async function deletePhoto(photoUrl) {
@@ -312,12 +256,10 @@ function resizeImage(file, maxSize, quality) {
       image.onerror = reject;
       image.onload = () => {
         const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
-        const width = Math.max(1, Math.round(image.width * scale));
-        const height = Math.max(1, Math.round(image.height * scale));
         const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        canvas.getContext("2d").drawImage(image, 0, 0, width, height);
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+        canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
         resolve(canvas.toDataURL("image/jpeg", quality));
       };
       image.src = reader.result;
@@ -351,8 +293,7 @@ function renderToday() {
 function renderCalendar() {
   const year = calendarCursor.getFullYear();
   const month = calendarCursor.getMonth();
-  const firstDay = new Date(year, month, 1);
-  const firstWeekday = (firstDay.getDay() + 6) % 7;
+  const firstWeekday = (new Date(year, month, 1).getDay() + 6) % 7;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const cells = [];
   dom.calendarTitle.textContent = `${year}年${month + 1}月`;
@@ -364,28 +305,23 @@ function renderCalendar() {
     cells.push(`<button class="${classes}" data-date="${dateValue}" type="button">${day}</button>`);
   }
   dom.calendarGrid.innerHTML = cells.join("");
-  dom.calendarGrid.querySelectorAll("[data-date]").forEach((button) => {
-    button.addEventListener("click", () => { selectedDate = button.dataset.date; renderCalendar(); });
-  });
+  dom.calendarGrid.querySelectorAll("[data-date]").forEach((button) => button.addEventListener("click", () => { selectedDate = button.dataset.date; renderCalendar(); }));
   renderSelectedDay();
 }
 
 function renderSelectedDay() {
-  const date = parseDate(selectedDate);
   const dayEntries = sortEntries(entries.filter((entry) => entry.date === selectedDate));
-  dom.selectedDateTitle.textContent = `${formatLongDate(date)} 的记录`;
+  dom.selectedDateTitle.textContent = `${formatLongDate(parseDate(selectedDate))} 的记录`;
   dom.selectedDayList.innerHTML = dayEntries.length ? renderMealGroups(dayEntries) : `<p class="empty">这天还没有记录，留给下一顿饭吧。</p>`;
   bindDeleteButtons(dom.selectedDayList);
 }
 
 function renderStats() {
-  const now = new Date();
-  const range = statsMode === "week" ? getWeekRange(now) : getMonthRange(now);
+  const range = statsMode === "week" ? getWeekRange(new Date()) : getMonthRange(new Date());
   const filtered = entries.filter((entry) => entry.date >= range.start && entry.date <= range.end);
-  const activeDays = new Set(filtered.map((entry) => entry.date));
   const topFoods = getTopFoods(filtered);
   const totalCalories = filtered.reduce((sum, entry) => sum + (Number(entry.calories) || 0), 0);
-  dom.statDays.textContent = activeDays.size;
+  dom.statDays.textContent = new Set(filtered.map((entry) => entry.date)).size;
   dom.statEntries.textContent = filtered.length;
   dom.statCalories.textContent = totalCalories ? `${totalCalories}` : "未填";
   dom.statTopFood.textContent = topFoods[0]?.name || "暂无";
@@ -435,8 +371,7 @@ function updateCalorieEstimate() {
   dom.calorieEstimateText.textContent = `估算：${calories} kcal。按「${foodName}」约 ${kcalPer100} kcal/100g，折算约 ${Math.round(grams)}g。`;
   dom.applyCalorieEstimate.disabled = false;
   const currentCalories = Number(dom.calories.value);
-  const shouldAutoFill = !caloriesTouched || dom.calories.value === "" || currentCalories === Number(lastAutoCalories);
-  if (shouldAutoFill) {
+  if (!caloriesTouched || dom.calories.value === "" || currentCalories === Number(lastAutoCalories)) {
     dom.calories.value = calories;
     lastAutoCalories = String(calories);
     caloriesTouched = false;
@@ -459,8 +394,7 @@ function estimateCalories(foodName, amount, unit) {
   const gramsPerUnit = matchedFood.units[unit] || defaultUnitWeights[unit];
   if (!gramsPerUnit) return null;
   const grams = amount * gramsPerUnit;
-  const calories = Math.max(1, Math.round((grams * matchedFood.kcalPer100) / 100));
-  return { calories, foodName: matchedFood.name, grams, kcalPer100: matchedFood.kcalPer100 };
+  return { calories: Math.max(1, Math.round((grams * matchedFood.kcalPer100) / 100)), foodName: matchedFood.name, grams, kcalPer100: matchedFood.kcalPer100 };
 }
 
 function bindDeleteButtons(container) {
@@ -469,19 +403,10 @@ function bindDeleteButtons(container) {
 
 async function addDemoEntries() {
   const today = toDateInputValue(new Date());
-  const demo = [
-    ["燕麦酸奶", 1, "碗", "早餐", "08:20", "健康"],
-    ["拿铁", 1, "杯", "早餐", "09:30", ""],
-    ["番茄鸡蛋饭", 1, "份", "午餐", "12:35", "清淡"],
-    ["草莓", 8, "个", "加餐", "16:10", "甜"],
-    ["蔬菜汤", 1, "碗", "晚餐", "19:00", "清淡"],
-  ];
-
+  const demo = [["燕麦酸奶", 1, "碗", "早餐", "08:20", "健康"], ["拿铁", 1, "杯", "早餐", "09:30", ""], ["番茄鸡蛋饭", 1, "份", "午餐", "12:35", "清淡"], ["草莓", 8, "个", "加餐", "16:10", "甜"], ["蔬菜汤", 1, "碗", "晚餐", "19:00", "清淡"]];
   try {
     showToast("正在添加云端示例记录...");
-    for (const [foodName, amount, unit, meal, time, tag] of demo) {
-      await insertCloudEntry({ foodName, amount, unit, meal, date: today, time, tag, note: "", photo: "", calories: estimateCalories(foodName, amount, unit)?.calories || null });
-    }
+    for (const [foodName, amount, unit, meal, time, tag] of demo) await insertCloudEntry({ foodName, amount, unit, meal, date: today, time, tag, note: "", photo: "", calories: estimateCalories(foodName, amount, unit)?.calories || null });
     await loadEntriesFromCloud();
     showToast("已添加一组今天的示例记录");
   } catch (error) {
@@ -502,40 +427,12 @@ function moveMonth(offset) {
 }
 
 function toCloudEntry(entry) {
-  return {
-    food_name: entry.foodName,
-    amount: entry.amount,
-    unit: entry.unit,
-    calories: entry.calories,
-    meal: entry.meal,
-    entry_date: entry.date,
-    entry_time: entry.time,
-    tag: entry.tag || null,
-    note: entry.note || null,
-    photo_url: entry.photo || null,
-  };
+  return { food_name: entry.foodName, amount: entry.amount, unit: entry.unit, calories: entry.calories, meal: entry.meal, entry_date: entry.date, entry_time: entry.time, tag: entry.tag || null, note: entry.note || null, photo_url: entry.photo || null };
 }
-
 function fromCloudEntry(row) {
-  return {
-    id: row.id,
-    foodName: row.food_name,
-    amount: Number(row.amount),
-    calories: row.calories == null ? null : Number(row.calories),
-    unit: row.unit,
-    meal: row.meal,
-    date: row.entry_date,
-    time: String(row.entry_time).slice(0, 5),
-    tag: row.tag || "",
-    note: row.note || "",
-    photo: row.photo_url || "",
-    createdAt: row.created_at,
-  };
+  return { id: row.id, foodName: row.food_name, amount: Number(row.amount), calories: row.calories == null ? null : Number(row.calories), unit: row.unit, meal: row.meal, date: row.entry_date, time: String(row.entry_time).slice(0, 5), tag: row.tag || "", note: row.note || "", photo: row.photo_url || "", createdAt: row.created_at };
 }
-
-function loadLocalBackup() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { return []; }
-}
+function loadLocalBackup() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { return []; } }
 function saveLocalBackup(list) { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); }
 function showToast(message) { dom.toast.textContent = message; dom.toast.classList.add("show"); window.setTimeout(() => dom.toast.classList.remove("show"), 2200); }
 function sortEntries(list) { return [...list].sort((a, b) => a.time.localeCompare(b.time)); }
@@ -543,22 +440,9 @@ function getTopFoods(list) {
   const counts = list.reduce((result, entry) => { const key = entry.foodName.trim(); result[key] = (result[key] || 0) + 1; return result; }, {});
   return Object.entries(counts).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "zh-CN"));
 }
-function getWeekRange(date) {
-  const start = new Date(date);
-  const weekday = (start.getDay() + 6) % 7;
-  start.setDate(start.getDate() - weekday);
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  return { start: toDateInputValue(start), end: toDateInputValue(end) };
-}
+function getWeekRange(date) { const start = new Date(date); const weekday = (start.getDay() + 6) % 7; start.setDate(start.getDate() - weekday); const end = new Date(start); end.setDate(start.getDate() + 6); return { start: toDateInputValue(start), end: toDateInputValue(end) }; }
 function getMonthRange(date) { return { start: toDateInputValue(new Date(date.getFullYear(), date.getMonth(), 1)), end: toDateInputValue(new Date(date.getFullYear(), date.getMonth() + 1, 0)) }; }
-function eachDay(startValue, endValue) {
-  const days = [];
-  const cursor = parseDate(startValue);
-  const end = parseDate(endValue);
-  while (cursor <= end) { days.push(toDateInputValue(cursor)); cursor.setDate(cursor.getDate() + 1); }
-  return days;
-}
+function eachDay(startValue, endValue) { const days = []; const cursor = parseDate(startValue); const end = parseDate(endValue); while (cursor <= end) { days.push(toDateInputValue(cursor)); cursor.setDate(cursor.getDate() + 1); } return days; }
 function startOfMonth(date) { return new Date(date.getFullYear(), date.getMonth(), 1); }
 function parseDate(value) { const [year, month, day] = value.split("-").map(Number); return new Date(year, month - 1, day); }
 function toDateInputValue(date) { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`; }
