@@ -1,4 +1,9 @@
 const STORAGE_KEY = "cuteFoodDiaryEntries";
+const MIGRATION_KEY = "cuteFoodDiaryMigratedToSupabase";
+const SUPABASE_URL = "https://hsjddyyjxvyhbszihwnp.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhzamRkeXlqeHZ5aGJzemlIdeG4cCIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzg0NTU4MTE2LCJleHAiOjIxMDAxMzQxMTZ9.gT1ygLFTqyln7Jb1xkGK8dNSNf7OrkDZJ-RNEhYSmn0";
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 const mealOrder = ["早餐", "午餐", "晚餐", "加餐"];
 const mealLabel = { 早餐: "早餐", 午餐: "午餐", 晚餐: "晚餐", 加餐: "加餐" };
 
@@ -41,7 +46,7 @@ const calorieDatabase = [
 ];
 
 const defaultUnitWeights = { 份: 200, 个: 100, 碗: 250, 杯: 250, 克: 1, 毫升: 1, 片: 35, 块: 100, 根: 180 };
-let entries = loadEntries();
+let entries = [];
 let activeMeal = "早餐";
 let calendarCursor = startOfMonth(new Date());
 let selectedDate = toDateInputValue(new Date());
@@ -96,11 +101,20 @@ const dom = {
 
 initialize();
 
-function initialize() {
+async function initialize() {
   const now = new Date();
   dom.todayLabel.textContent = formatLongDate(now);
   dom.date.value = toDateInputValue(now);
   dom.time.value = toTimeInputValue(now);
+  bindEvents();
+  renderAll();
+  updateCalorieEstimate();
+  showToast("正在同步云端记录...");
+  await migrateLocalEntriesOnce();
+  await loadEntriesFromCloud();
+}
+
+function bindEvents() {
   dom.tabs.forEach((tab) => tab.addEventListener("click", () => switchView(tab.dataset.view)));
   dom.openAddFromToday.addEventListener("click", () => switchView("add"));
   dom.entryForm.addEventListener("submit", saveEntry);
@@ -121,8 +135,46 @@ function initialize() {
       renderStats();
     });
   });
+}
+
+async function loadEntriesFromCloud() {
+  const { data, error } = await supabaseClient
+    .from("food_entries")
+    .select("*")
+    .order("entry_date", { ascending: false })
+    .order("entry_time", { ascending: false });
+
+  if (error) {
+    showToast("云端读取失败，请检查 Supabase 规则");
+    console.error(error);
+    entries = loadLocalBackup();
+  } else {
+    entries = data.map(fromCloudEntry);
+    saveLocalBackup(entries);
+    showToast("云端记录已同步");
+  }
   renderAll();
-  updateCalorieEstimate();
+}
+
+async function migrateLocalEntriesOnce() {
+  if (localStorage.getItem(MIGRATION_KEY)) return;
+  const localEntries = loadLocalBackup();
+  if (!localEntries.length) {
+    localStorage.setItem(MIGRATION_KEY, "done");
+    return;
+  }
+
+  try {
+    for (const entry of localEntries) {
+      const photoUrl = entry.photo?.startsWith("data:image/") ? await uploadPhoto(entry.photo) : entry.photo || "";
+      await insertCloudEntry({ ...entry, photo: photoUrl });
+    }
+    localStorage.setItem(MIGRATION_KEY, "done");
+    showToast("本地旧记录已迁移到云端");
+  } catch (error) {
+    console.error(error);
+    showToast("旧记录迁移失败，新记录仍会存云端");
+  }
 }
 
 function switchView(name) {
@@ -137,10 +189,9 @@ function selectMeal(event) {
   if (button) setActiveMeal(button.dataset.value);
 }
 
-function saveEntry(event) {
+async function saveEntry(event) {
   event.preventDefault();
   const entry = {
-    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
     foodName: dom.foodName.value.trim(),
     amount: Number(dom.amount.value),
     calories: dom.calories.value ? Number(dom.calories.value) : null,
@@ -150,33 +201,80 @@ function saveEntry(event) {
     time: dom.time.value,
     tag: dom.tag.value,
     note: dom.note.value.trim(),
-    photo: photoDataUrl,
+    photo: "",
     createdAt: new Date().toISOString(),
   };
+
   if (!entry.foodName || !entry.amount || !entry.date || !entry.time) {
     showToast("还有信息没填完整");
     return;
   }
-  entries.unshift(entry);
-  persistEntries();
-  dom.entryForm.reset();
-  dom.date.value = entry.date;
-  dom.time.value = toTimeInputValue(new Date());
-  setActiveMeal("早餐");
-  clearPhoto();
-  caloriesTouched = false;
-  lastAutoCalories = "";
-  updateCalorieEstimate();
-  renderAll();
-  showToast("记好了，照片也一起保存了");
-  switchView("today");
+
+  try {
+    dom.entryForm.querySelector("button[type='submit']").disabled = true;
+    showToast("正在保存到云端...");
+    entry.photo = photoDataUrl ? await uploadPhoto(photoDataUrl) : "";
+    const savedEntry = await insertCloudEntry(entry);
+    entries.unshift(savedEntry);
+    saveLocalBackup(entries);
+    resetFormAfterSave(entry.date);
+    renderAll();
+    showToast("已保存到云端");
+    switchView("today");
+  } catch (error) {
+    console.error(error);
+    showToast("云端保存失败，请检查网络或 Supabase 规则");
+  } finally {
+    dom.entryForm.querySelector("button[type='submit']").disabled = false;
+  }
 }
 
-function deleteEntry(id) {
-  entries = entries.filter((entry) => entry.id !== id);
-  persistEntries();
+async function insertCloudEntry(entry) {
+  const payload = toCloudEntry(entry);
+  const { data, error } = await supabaseClient
+    .from("food_entries")
+    .insert(payload)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return fromCloudEntry(data);
+}
+
+async function deleteEntry(id) {
+  const entry = entries.find((item) => item.id === id);
+  const { error } = await supabaseClient.from("food_entries").delete().eq("id", id);
+  if (error) {
+    console.error(error);
+    showToast("云端删除失败");
+    return;
+  }
+
+  if (entry?.photo) await deletePhoto(entry.photo);
+  entries = entries.filter((item) => item.id !== id);
+  saveLocalBackup(entries);
   renderAll();
-  showToast("已经删除这条记录");
+  showToast("已经从云端删除这条记录");
+}
+
+async function uploadPhoto(dataUrl) {
+  const blob = await fetch(dataUrl).then((response) => response.blob());
+  const filePath = `meals/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+  const { error } = await supabaseClient.storage
+    .from("meal-photos")
+    .upload(filePath, blob, { contentType: "image/jpeg", upsert: false });
+
+  if (error) throw error;
+  const { data } = supabaseClient.storage.from("meal-photos").getPublicUrl(filePath);
+  return data.publicUrl;
+}
+
+async function deletePhoto(photoUrl) {
+  const marker = "/storage/v1/object/public/meal-photos/";
+  const index = photoUrl.indexOf(marker);
+  if (index === -1) return;
+  const path = decodeURIComponent(photoUrl.slice(index + marker.length));
+  await supabaseClient.storage.from("meal-photos").remove([path]);
 }
 
 async function handlePhotoSelect(event) {
@@ -226,6 +324,17 @@ function resizeImage(file, maxSize, quality) {
     };
     reader.readAsDataURL(file);
   });
+}
+
+function resetFormAfterSave(dateValue) {
+  dom.entryForm.reset();
+  dom.date.value = dateValue;
+  dom.time.value = toTimeInputValue(new Date());
+  setActiveMeal("早餐");
+  clearPhoto();
+  caloriesTouched = false;
+  lastAutoCalories = "";
+  updateCalorieEstimate();
 }
 
 function renderAll() { renderToday(); renderCalendar(); renderStats(); }
@@ -358,7 +467,7 @@ function bindDeleteButtons(container) {
   container.querySelectorAll("[data-delete]").forEach((button) => button.addEventListener("click", () => deleteEntry(button.dataset.delete)));
 }
 
-function addDemoEntries() {
+async function addDemoEntries() {
   const today = toDateInputValue(new Date());
   const demo = [
     ["燕麦酸奶", 1, "碗", "早餐", "08:20", "健康"],
@@ -366,24 +475,19 @@ function addDemoEntries() {
     ["番茄鸡蛋饭", 1, "份", "午餐", "12:35", "清淡"],
     ["草莓", 8, "个", "加餐", "16:10", "甜"],
     ["蔬菜汤", 1, "碗", "晚餐", "19:00", "清淡"],
-  ].map(([foodName, amount, unit, meal, time, tag], index) => ({
-    id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${foodName}`,
-    foodName,
-    amount,
-    calories: [260, 120, 560, 40, 180][index],
-    unit,
-    meal,
-    date: today,
-    time,
-    tag,
-    note: "",
-    photo: "",
-    createdAt: new Date().toISOString(),
-  }));
-  entries = [...demo, ...entries];
-  persistEntries();
-  renderAll();
-  showToast("已添加一组今天的示例记录");
+  ];
+
+  try {
+    showToast("正在添加云端示例记录...");
+    for (const [foodName, amount, unit, meal, time, tag] of demo) {
+      await insertCloudEntry({ foodName, amount, unit, meal, date: today, time, tag, note: "", photo: "", calories: estimateCalories(foodName, amount, unit)?.calories || null });
+    }
+    await loadEntriesFromCloud();
+    showToast("已添加一组今天的示例记录");
+  } catch (error) {
+    console.error(error);
+    showToast("示例记录添加失败");
+  }
 }
 
 function setActiveMeal(meal) {
@@ -397,11 +501,43 @@ function moveMonth(offset) {
   renderCalendar();
 }
 
-function loadEntries() {
+function toCloudEntry(entry) {
+  return {
+    food_name: entry.foodName,
+    amount: entry.amount,
+    unit: entry.unit,
+    calories: entry.calories,
+    meal: entry.meal,
+    entry_date: entry.date,
+    entry_time: entry.time,
+    tag: entry.tag || null,
+    note: entry.note || null,
+    photo_url: entry.photo || null,
+  };
+}
+
+function fromCloudEntry(row) {
+  return {
+    id: row.id,
+    foodName: row.food_name,
+    amount: Number(row.amount),
+    calories: row.calories == null ? null : Number(row.calories),
+    unit: row.unit,
+    meal: row.meal,
+    date: row.entry_date,
+    time: String(row.entry_time).slice(0, 5),
+    tag: row.tag || "",
+    note: row.note || "",
+    photo: row.photo_url || "",
+    createdAt: row.created_at,
+  };
+}
+
+function loadLocalBackup() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { return []; }
 }
-function persistEntries() { localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); }
-function showToast(message) { dom.toast.textContent = message; dom.toast.classList.add("show"); window.setTimeout(() => dom.toast.classList.remove("show"), 1800); }
+function saveLocalBackup(list) { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); }
+function showToast(message) { dom.toast.textContent = message; dom.toast.classList.add("show"); window.setTimeout(() => dom.toast.classList.remove("show"), 2200); }
 function sortEntries(list) { return [...list].sort((a, b) => a.time.localeCompare(b.time)); }
 function getTopFoods(list) {
   const counts = list.reduce((result, entry) => { const key = entry.foodName.trim(); result[key] = (result[key] || 0) + 1; return result; }, {});
