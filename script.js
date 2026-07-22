@@ -2,7 +2,6 @@ const STORAGE_KEY = "cuteFoodDiaryEntries";
 const MIGRATION_KEY = "cuteFoodDiaryMigratedToSupabase";
 const SUPABASE_URL = "https://hsjddyyjxvyhbszihwnp.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhzamRkeXlqeHZ5aGJzemlod25wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1NTgxMTYsImV4cCI6MjEwMDEzNDExNn0.gT1ygLFTqyln7Jb1xkGK8dNSNf7OrkDZJ-RNEhYSmn0";
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const mealOrder = ["早餐", "午餐", "晚餐", "加餐"];
 const mealLabel = { 早餐: "早餐", 午餐: "午餐", 晚餐: "晚餐", 加餐: "加餐" };
@@ -79,6 +78,7 @@ async function initialize() {
   dom.date.value = toDateInputValue(now);
   dom.time.value = toTimeInputValue(now);
   bindEvents();
+  entries = loadLocalBackup();
   renderAll();
   updateCalorieEstimate();
   showToast("正在同步云端记录...");
@@ -107,16 +107,36 @@ function bindEvents() {
   }));
 }
 
+async function supabaseFetch(path, options = {}) {
+  const response = await fetch(`${SUPABASE_URL}${path}`, {
+    ...options,
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      ...(options.body && !(options.body instanceof Blob) ? { "Content-Type": "application/json" } : {}),
+      ...(options.headers || {}),
+    },
+  });
+  if (!response.ok) {
+    let detail = await response.text();
+    try { detail = JSON.parse(detail).message || detail; } catch {}
+    throw new Error(detail || `HTTP ${response.status}`);
+  }
+  if (response.status === 204) return null;
+  return response.json();
+}
+
 async function loadEntriesFromCloud() {
-  const { data, error } = await supabaseClient.from("food_entries").select("*").order("entry_date", { ascending: false }).order("entry_time", { ascending: false });
-  if (error) {
+  try {
+    const data = await supabaseFetch("/rest/v1/food_entries?select=*&order=entry_date.desc,entry_time.desc");
+    const localPending = loadLocalBackup().filter((entry) => entry.cloudPending);
+    entries = [...localPending, ...data.map(fromCloudEntry)];
+    saveLocalBackup(entries);
+    showToast(localPending.length ? "云端已同步，仍有本地待同步记录" : "云端记录已同步");
+  } catch (error) {
     console.error(error);
     entries = loadLocalBackup();
-    showToast("云端读取失败，暂用本地备份");
-  } else {
-    entries = data.map(fromCloudEntry);
-    saveLocalBackup(entries);
-    showToast("云端记录已同步");
+    showToast(`云端读取失败：${friendlyError(error)}`);
   }
   renderAll();
 }
@@ -130,6 +150,7 @@ async function migrateLocalEntriesOnce() {
   }
   try {
     for (const entry of localEntries) {
+      if (entry.cloudPending === false) continue;
       const photoUrl = entry.photo?.startsWith("data:image/") ? await uploadPhoto(entry.photo) : entry.photo || "";
       await insertCloudEntry({ ...entry, photo: photoUrl });
     }
@@ -137,7 +158,7 @@ async function migrateLocalEntriesOnce() {
     showToast("本地旧记录已迁移到云端");
   } catch (error) {
     console.error(error);
-    showToast("旧记录迁移失败，新记录仍会存云端");
+    showToast(`旧记录迁移失败：${friendlyError(error)}`);
   }
 }
 
@@ -178,39 +199,58 @@ async function saveEntry(event) {
     switchView("today");
   } catch (error) {
     console.error(error);
-    showToast("云端保存失败，请检查网络或 Supabase 规则");
+    const localEntry = { ...entry, id: `local-${Date.now()}`, photo: photoDataUrl || entry.photo, cloudPending: true };
+    entries.unshift(localEntry);
+    saveLocalBackup(entries);
+    resetFormAfterSave(entry.date);
+    renderAll();
+    switchView("today");
+    showToast(`云端失败，已先保存在本机：${friendlyError(error)}`);
   } finally {
     submitButton.disabled = false;
   }
 }
 
 async function insertCloudEntry(entry) {
-  const { data, error } = await supabaseClient.from("food_entries").insert(toCloudEntry(entry)).select("*").single();
-  if (error) throw error;
-  return fromCloudEntry(data);
+  const data = await supabaseFetch("/rest/v1/food_entries", {
+    method: "POST",
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify(toCloudEntry(entry)),
+  });
+  return fromCloudEntry(data[0]);
 }
 
 async function deleteEntry(id) {
   const entry = entries.find((item) => item.id === id);
-  const { error } = await supabaseClient.from("food_entries").delete().eq("id", id);
-  if (error) {
-    console.error(error);
-    showToast("云端删除失败");
+  if (entry?.cloudPending) {
+    entries = entries.filter((item) => item.id !== id);
+    saveLocalBackup(entries);
+    renderAll();
+    showToast("已经删除本机待同步记录");
     return;
   }
-  if (entry?.photo) await deletePhoto(entry.photo);
-  entries = entries.filter((item) => item.id !== id);
-  saveLocalBackup(entries);
-  renderAll();
-  showToast("已经从云端删除这条记录");
+  try {
+    await supabaseFetch(`/rest/v1/food_entries?id=eq.${encodeURIComponent(id)}`, { method: "DELETE" });
+    if (entry?.photo) await deletePhoto(entry.photo);
+    entries = entries.filter((item) => item.id !== id);
+    saveLocalBackup(entries);
+    renderAll();
+    showToast("已经从云端删除这条记录");
+  } catch (error) {
+    console.error(error);
+    showToast(`云端删除失败：${friendlyError(error)}`);
+  }
 }
 
 async function uploadPhoto(dataUrl) {
   const blob = await fetch(dataUrl).then((response) => response.blob());
   const filePath = `meals/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
-  const { error } = await supabaseClient.storage.from("meal-photos").upload(filePath, blob, { contentType: "image/jpeg", upsert: false });
-  if (error) throw error;
-  return supabaseClient.storage.from("meal-photos").getPublicUrl(filePath).data.publicUrl;
+  await supabaseFetch(`/storage/v1/object/meal-photos/${filePath}`, {
+    method: "POST",
+    headers: { "Content-Type": "image/jpeg", "x-upsert": "false" },
+    body: blob,
+  });
+  return `${SUPABASE_URL}/storage/v1/object/public/meal-photos/${filePath}`;
 }
 
 async function deletePhoto(photoUrl) {
@@ -218,7 +258,14 @@ async function deletePhoto(photoUrl) {
   const index = photoUrl.indexOf(marker);
   if (index === -1) return;
   const path = decodeURIComponent(photoUrl.slice(index + marker.length));
-  await supabaseClient.storage.from("meal-photos").remove([path]);
+  try {
+    await supabaseFetch("/storage/v1/object/meal-photos", {
+      method: "DELETE",
+      body: JSON.stringify({ prefixes: [path] }),
+    });
+  } catch (error) {
+    console.warn("Photo delete failed", error);
+  }
 }
 
 async function handlePhotoSelect(event) {
@@ -355,7 +402,7 @@ function renderMealGroups(list) {
 }
 
 function renderEntry(entry) {
-  const detail = [`${entry.amount}${entry.unit}`, entry.calories ? `${entry.calories} kcal` : "", entry.time, entry.tag ? `#${entry.tag}` : "", entry.note].filter(Boolean).join(" | ");
+  const detail = [`${entry.amount}${entry.unit}`, entry.calories ? `${entry.calories} kcal` : "", entry.time, entry.tag ? `#${entry.tag}` : "", entry.note, entry.cloudPending ? "待同步" : ""].filter(Boolean).join(" | ");
   const photo = entry.photo ? `<img class="entry-photo" src="${entry.photo}" alt="${escapeHtml(entry.foodName)}照片" loading="lazy" />` : "";
   return `<div class="entry-row"><div class="entry-main">${photo}<div><div class="entry-name">${escapeHtml(entry.foodName)}</div><p class="entry-meta">${escapeHtml(detail)}</p></div></div><button class="delete-button" data-delete="${entry.id}" title="删除" type="button">x</button></div>`;
 }
@@ -411,7 +458,7 @@ async function addDemoEntries() {
     showToast("已添加一组今天的示例记录");
   } catch (error) {
     console.error(error);
-    showToast("示例记录添加失败");
+    showToast(`示例记录添加失败：${friendlyError(error)}`);
   }
 }
 
@@ -427,14 +474,15 @@ function moveMonth(offset) {
 }
 
 function toCloudEntry(entry) {
-  return { food_name: entry.foodName, amount: entry.amount, unit: entry.unit, calories: entry.calories, meal: entry.meal, entry_date: entry.date, entry_time: entry.time, tag: entry.tag || null, note: entry.note || null, photo_url: entry.photo || null };
+  return { food_name: entry.foodName, amount: entry.amount, unit: entry.unit, calories: entry.calories, meal: entry.meal, entry_date: entry.date, entry_time: entry.time, tag: entry.tag || null, note: entry.note || null, photo_url: entry.photo?.startsWith("data:image/") ? null : entry.photo || null };
 }
 function fromCloudEntry(row) {
-  return { id: row.id, foodName: row.food_name, amount: Number(row.amount), calories: row.calories == null ? null : Number(row.calories), unit: row.unit, meal: row.meal, date: row.entry_date, time: String(row.entry_time).slice(0, 5), tag: row.tag || "", note: row.note || "", photo: row.photo_url || "", createdAt: row.created_at };
+  return { id: row.id, foodName: row.food_name, amount: Number(row.amount), calories: row.calories == null ? null : Number(row.calories), unit: row.unit, meal: row.meal, date: row.entry_date, time: String(row.entry_time).slice(0, 5), tag: row.tag || "", note: row.note || "", photo: row.photo_url || "", createdAt: row.created_at, cloudPending: false };
 }
 function loadLocalBackup() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { return []; } }
 function saveLocalBackup(list) { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); }
-function showToast(message) { dom.toast.textContent = message; dom.toast.classList.add("show"); window.setTimeout(() => dom.toast.classList.remove("show"), 2200); }
+function showToast(message) { dom.toast.textContent = message; dom.toast.classList.add("show"); window.setTimeout(() => dom.toast.classList.remove("show"), 3200); }
+function friendlyError(error) { return error?.message?.includes("Failed to fetch") ? "网络连不上 Supabase" : error?.message || "未知错误"; }
 function sortEntries(list) { return [...list].sort((a, b) => a.time.localeCompare(b.time)); }
 function getTopFoods(list) {
   const counts = list.reduce((result, entry) => { const key = entry.foodName.trim(); result[key] = (result[key] || 0) + 1; return result; }, {});
